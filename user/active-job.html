@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ติดตามสถานะการเดินทาง - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#F59E0B',
+                            dark: '#D97706',
+                            light: '#FBBF24'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .custom-leaflet-marker { background: none; border: none; }
+        .user-pulse-marker {
+            width: 20px;
+            height: 20px;
+            background: #2563EB;
+            border: 3px solid #FFFFFF;
+            border-radius: 50%;
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+            position: relative;
+        }
+        .user-pulse-marker::after {
+            content: '';
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border-radius: 50%;
+            background: rgba(37, 99, 235, 0.35);
+            animation: pulse-ring 1.8s infinite ease-out;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-[100dvh] flex flex-col overflow-hidden text-slate-800">
+
+    <!-- Top Universal Header -->
+    <header class="bg-white border-b border-slate-200/80 h-14 sm:h-16 flex items-center justify-between px-4 sm:px-6 z-30 shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="dashboard.html" class="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-base font-black text-slate-900 tracking-tight">ติดตามการเดินทาง</h1>
+                <p class="text-[10px] text-slate-500 font-semibold">Real-time Location Tracking</p>
+            </div>
+        </div>
+        <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span>ระบบอัปเดตสด</span>
+        </span>
+    </header>
+
+    <!-- Map & Side Panel Workspace -->
+    <div class="flex-grow relative flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Interactive Map -->
+        <div id="map" class="flex-grow w-full h-[50vh] lg:h-full z-10"></div>
+
+        <!-- Tracking Details Panel -->
+        <div class="w-full lg:w-[420px] bg-white rounded-t-3xl lg:rounded-none shadow-2xl border-t lg:border-l border-slate-200 z-20 p-5 flex flex-col justify-between shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-full">
+            <div id="jobDetailsContent" class="space-y-4">
+                <div class="text-center py-12 space-y-3">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-primary mx-auto"></i>
+                    <p class="text-xs font-bold text-slate-600">กำลังตรวจสอบข้อมูลสถานะการเดินทาง...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="md:hidden bg-white border-t border-slate-200 h-14 flex items-center justify-around px-2 z-30 shrink-0 shadow-lg">
+        <a href="dashboard.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="map" class="w-4 h-4"></i>
+            <span class="text-[9px] mt-0.5">เรียกรถ</span>
+        </a>
+        <a href="active-job.html" class="flex flex-col items-center text-primary font-bold">
+            <i data-lucide="navigation" class="w-4 h-4"></i>
+            <span class="text-[9px] mt-0.5">งานปัจจุบัน</span>
+        </a>
+        <a href="history.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="clock" class="w-4 h-4"></i>
+            <span class="text-[9px] mt-0.5">ประวัติ</span>
+        </a>
+        <a href="profile.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span class="text-[9px] mt-0.5">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/map.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        let currentJob = null;
+        let routePolyline = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('user');
+            if (!auth) return;
+
+            leafletMap = L.map('map', { zoomControl: false }).setView([13.7563, 100.5018], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(leafletMap);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+            lucide.createIcons();
+
+            await loadActiveJob(auth.profile.id);
+
+            // Supabase Realtime Subscription - อัปเดตเมื่อสถานะงานเปลี่ยน
+            supabaseClient.channel('public:jobs')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'jobs' }, (payload) => {
+                    if (currentJob && payload.new.id === currentJob.id) {
+                        loadActiveJob(auth.profile.id);
+                    }
+                }).subscribe();
+
+            // Realtime Subscription - รับพิกัดสดของคนขับ
+            supabaseClient.channel('public:job_locations')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'job_locations' }, (payload) => {
+                    if (currentJob && payload.new.job_id === currentJob.id) {
+                        addMarker('driver_live', payload.new.latitude, payload.new.longitude, 'พิกัดวินล่าสุด', 'driver');
+                        setMapCenter(payload.new.latitude, payload.new.longitude, 16);
+                    }
+                }).subscribe();
+        });
+
+        async function loadActiveJob(userId) {
+            // ปรับ Query ป้องกันปัญหา Foreign Key join error
+            const { data, error } = await supabaseClient
+                .from('jobs')
+                .select('*')
+                .eq('customer_id', userId)
+                .in('status', ['waiting', 'assigned', 'accepted', 'traveling', 'arrived'])
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            const container = document.getElementById('jobDetailsContent');
+
+            if (error || !data || data.length === 0) {
+                currentJob = null;
+                container.innerHTML = `
+                    <div class="text-center py-12 space-y-4">
+                        <div class="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto text-primary">
+                            <i data-lucide="navigation" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-black text-slate-800 text-base">ไม่มีรายการเดินทางในขณะนี้</h3>
+                            <p class="text-xs text-slate-500 mt-1">คุณสามารถเลือกปลายทางเพื่อเรียกรถได้จากหน้าหลัก</p>
+                        </div>
+                        <a href="dashboard.html" class="inline-flex items-center space-x-2 px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20 transition">
+                            <i data-lucide="map-pin" class="w-4 h-4"></i>
+                            <span>ไปหน้าเรียกรถ</span>
+                        </a>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            currentJob = data[0];
+
+            // Render Markers บนแผนที่
+            addMarker('pickup', currentJob.pickup_latitude, currentJob.pickup_longitude, 'จุดรับ', 'user');
+            addMarker('destination', currentJob.destination_latitude, currentJob.destination_longitude, 'ปลายทาง', 'destination');
+
+            // วาดเส้นทางระหว่าง จุดรับ กับ ปลายทาง
+            if (routePolyline) leafletMap.removeLayer(routePolyline);
+            routePolyline = L.polyline([
+                [currentJob.pickup_latitude, currentJob.pickup_longitude],
+                [currentJob.destination_latitude, currentJob.destination_longitude]
+            ], { color: '#F59E0B', weight: 4, dashArray: '6, 8' }).addTo(leafletMap);
+
+            leafletMap.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+
+            // ดึงข้อมูลผู้ขับเพิ่มเติมกรณีมี driver_id
+            let driverInfoData = null;
+            let driverProfileData = null;
+            if (currentJob.driver_id) {
+                const { data: dData } = await supabaseClient.from('drivers').select('*').eq('id', currentJob.driver_id).single();
+                driverInfoData = dData;
+                if (driverInfoData && driverInfoData.user_id) {
+                    const { data: pData } = await supabaseClient.from('profiles').select('*').eq('id', driverInfoData.user_id).single();
+                    driverProfileData = pData;
+                }
+            }
+
+            let statusBadge = '';
+            let statusTitle = '';
+
+            switch(currentJob.status) {
+                case 'waiting':
+                    statusBadge = '<span class="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold">กำลังค้นหาวิน</span>';
+                    statusTitle = 'ระบบกำลังเชื่อมต่อกับวินใกล้คุณ...';
+                    break;
+                case 'assigned':
+                case 'accepted':
+                    statusBadge = '<span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold">วินรับงานแล้ว</span>';
+                    statusTitle = 'วินกำลังเดินทางมารับคุณ';
+                    break;
+                case 'traveling':
+                    statusBadge = '<span class="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-xs font-bold">กำลังเดินทาง</span>';
+                    statusTitle = 'กำลังมุ่งหน้าสู่จุดหมายปลายทาง';
+                    break;
+                case 'arrived':
+                    statusBadge = '<span class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">วินถึงจุดรับแล้ว</span>';
+                    statusTitle = 'วินมอเตอร์ไซค์เดินทางมาถึงจุดรับแล้ว';
+                    break;
+            }
+
+            let driverHtml = `
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center space-x-4">
+                    <div class="w-11 h-11 bg-amber-100 text-primary rounded-xl flex items-center justify-center font-bold text-lg shrink-0">
+                        <i data-lucide="bike" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">ผู้ขับขี่</p>
+                        <p class="text-xs font-bold text-slate-800">กำลังรอการจับคู่วิน...</p>
+                    </div>
+                </div>
+            `;
+
+            if (driverInfoData && driverProfileData) {
+                driverHtml = `
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-11 h-11 bg-amber-500 text-white rounded-xl flex items-center justify-center font-black text-base shadow-md shrink-0">
+                                    ${(driverProfileData.full_name || 'W').charAt(0)}
+                                </div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-xs text-slate-900 truncate">${driverProfileData.full_name || 'วินรับจ้าง'}</h4>
+                                    <p class="text-[11px] text-slate-500 font-medium truncate">${driverInfoData.vehicle_brand || 'มอเตอร์ไซค์'} • <span class="font-bold text-slate-800">${driverInfoData.license_number || 'ไม่ระบุทะเบียน'}</span></p>
+                                </div>
+                            </div>
+                            ${driverProfileData.phone ? `
+                                <a href="tel:${driverProfileData.phone}" class="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition shrink-0" aria-label="Call Driver">
+                                    <i data-lucide="phone-call" class="w-4 h-4"></i>
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="space-y-3.5">
+                    <div class="flex items-center justify-between">
+                        ${statusBadge}
+                        <span class="text-[11px] text-slate-400 font-medium">${formatDate(currentJob.created_at)}</span>
+                    </div>
+
+                    <h3 class="text-sm sm:text-base font-black text-slate-900">${statusTitle}</h3>
+
+                    ${driverHtml}
+
+                    <div class="space-y-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-xs font-medium">
+                        <div class="flex items-start space-x-2.5">
+                            <div class="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 shrink-0"></div>
+                            <div class="min-w-0">
+                                <p class="text-[9px] text-slate-400 font-bold uppercase">จุดรับ</p>
+                                <p class="text-slate-800 font-semibold truncate">${currentJob.pickup}</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-slate-200/60"></div>
+                        <div class="flex items-start space-x-2.5">
+                            <div class="w-2.5 h-2.5 rounded-full bg-rose-600 mt-1 shrink-0"></div>
+                            <div class="min-w-0">
+                                <p class="text-[9px] text-slate-400 font-bold uppercase">ปลายทาง</p>
+                                <p class="text-slate-800 font-semibold truncate">${currentJob.destination}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
+                        <span class="text-xs font-bold text-slate-700">ค่าโดยสารประมาณการ:</span>
+                        <span class="text-base font-black text-amber-600">${formatCurrency(currentJob.price)}</span>
+                    </div>
+
+                    ${currentJob.status === 'waiting' ? `
+                        <button onclick="cancelUserJob('${currentJob.id}')" class="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition border border-rose-200 flex items-center justify-center space-x-2">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i>
+                            <span>ยกเลิกการเรียกรถ</span>
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        async function cancelUserJob(jobId) {
+            Swal.fire({
+                title: 'ยืนยันยกเลิก?',
+                text: 'คุณต้องการยกเลิกการเรียกรถครั้งนี้ใช่หรือไม่',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ยกเลิกรายการ',
+                cancelButtonText: 'ย้อนกลับ',
+                confirmButtonColor: '#DC2626',
+                cancelButtonColor: '#64748B',
+                width: '90%',
+                customClass: { popup: 'rounded-2xl max-w-sm p-4' }
+            }).then(async (res) => {
+                if (res.isConfirmed) {
+                    const { error } = await supabaseClient
+                        .from('jobs')
+                        .update({ status: 'cancelled', cancelled_by: 'user', cancel_reason: 'ผู้ใช้ยกเลิกงาน' })
+                        .eq('id', jobId);
+
+                    if (error) {
+                        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: error.message });
+                    } else {
+                        Swal.fire({ icon: 'success', title: 'ยกเลิกสำเร็จ', timer: 1200, showConfirmButton: false }).then(() => {
+                            window.location.href = 'dashboard.html';
+                        });
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

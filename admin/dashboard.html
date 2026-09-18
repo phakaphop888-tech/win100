@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ผู้ดูแลระบบ - วิน100 Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#F59E0B', dark: '#D97706', light: '#FBBF24' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex text-slate-800">
+
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div id="sidebarBackdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden lg:hidden"></div>
+
+    <!-- Left Sidebar Navigation -->
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 w-72 bg-slate-900 text-slate-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 flex flex-col justify-between shrink-0 shadow-2xl lg:shadow-none">
+        <div class="p-6 space-y-8">
+            <!-- Brand Logo -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
+                        <i data-lucide="shield-check" class="w-6 h-6 stroke-[2.5]"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base font-black text-white tracking-wider">วิน100 <span class="text-primary">Admin</span></h1>
+                        <p class="text-[10px] text-slate-400 font-semibold">ระบบจัดการข้อมูลส่วนกลาง</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="space-y-1.5 text-xs font-bold">
+                <a href="dashboard.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl bg-primary text-white shadow-lg shadow-amber-500/20 transition">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span>แผงควบคุมหลัก</span>
+                </a>
+                <a href="drivers.html" class="flex items-center justify-between px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="bike" class="w-5 h-5"></i>
+                        <span>อนุมัติ & จัดการวิน</span>
+                    </div>
+                    <span id="pendingBadgeNav" class="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full text-[10px] hidden">0</span>
+                </a>
+                <a href="jobs.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="list-todo" class="w-5 h-5"></i>
+                    <span>รายการงานทั้งหมด</span>
+                </a>
+                <a href="users.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    <span>จัดการผู้ใช้บริการ</span>
+                </a>
+                <a href="reports.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    <span>รายงานสรุปการเงิน</span>
+                </a>
+                <a href="notifications.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span>ประกาศระบบ</span>
+                </a>
+                <a href="settings.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    <span>ตั้งค่าอัตราค่าบริการ</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Admin Profile / Logout -->
+        <div class="p-6 border-t border-slate-800">
+            <button onclick="logoutUser()" class="w-full py-3.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold rounded-2xl text-xs transition flex items-center justify-center space-x-2 border border-rose-500/20">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                <span>ออกจากระบบ</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-grow flex flex-col min-w-0 overflow-x-hidden">
+        
+        <!-- Top Bar Header -->
+        <header class="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-30 shadow-sm">
+            <div class="flex items-center space-x-4">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <h2 class="text-sm lg:text-base font-black text-slate-900">ภาพรวมระบบ (Dashboard Overview)</h2>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <span class="text-xs font-bold text-slate-500 hidden sm:inline">สิทธิ์: <span class="text-slate-900">ผู้ดูแลระบบ</span></span>
+                <div class="w-9 h-9 bg-slate-900 text-white rounded-xl font-black text-xs flex items-center justify-center shadow-md">
+                    A
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Workspace -->
+        <main class="p-6 lg:p-10 space-y-8 max-w-7xl w-full mx-auto">
+            
+            <!-- Pending Drivers Alert Banner -->
+            <div id="pendingAlertBanner" class="hidden bg-gradient-to-r from-amber-500 to-amber-600 rounded-3xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                        <i data-lucide="user-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-sm sm:text-base">มีคำขอสมัครขับวินรอการอนุมัติเอกสาร</h3>
+                        <p class="text-xs text-amber-100">โปรดตรวจสอบบัตรประชาชนและใบขับขี่เพื่ออนุมัติเข้าใช้งาน</p>
+                    </div>
+                </div>
+                <a href="drivers.html" class="px-5 py-3 bg-white text-slate-900 rounded-2xl font-bold text-xs hover:bg-slate-100 transition shrink-0 shadow-lg">
+                    ไปที่หน้าอนุมัติสิทธิ์
+                </a>
+            </div>
+
+            <!-- KPI Metric Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <!-- Total Revenue -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">รายได้ระบบรวม</span>
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="wallet" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <h3 id="statTotalRevenue" class="text-2xl font-black text-slate-900">฿0</h3>
+                    <p class="text-[11px] text-slate-400 font-medium">ยอดบริการจากเที่ยวรถสำเร็จ</p>
+                </div>
+
+                <!-- Approved Drivers -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">วินที่อนุมัติแล้ว</span>
+                        <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="bike" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <h3 id="statApprovedDrivers" class="text-2xl font-black text-slate-900">0 คน</h3>
+                    <p class="text-[11px] text-slate-400 font-medium">ผ่านการยืนยันเอกสารแล้ว</p>
+                </div>
+
+                <!-- Total Rides Today -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">งานเรียกวินวันนี้</span>
+                        <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <i data-lucide="navigation" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <h3 id="statTodayJobs" class="text-2xl font-black text-slate-900">0 เที่ยว</h3>
+                    <p class="text-[11px] text-slate-400 font-medium">รายการกดเรียกรถทั้งหมดวันนี้</p>
+                </div>
+
+                <!-- Total Customers -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">ผู้ใช้บริการในระบบ</span>
+                        <div class="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                            <i data-lucide="users" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <h3 id="statTotalUsers" class="text-2xl font-black text-slate-900">0 คน</h3>
+                    <p class="text-[11px] text-slate-400 font-medium">ผู้โดยสารลงทะเบียนทั้งหมด</p>
+                </div>
+            </div>
+
+            <!-- Recent Jobs Feed Section -->
+            <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 lg:p-8 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">รายการงานเรียกรถล่าสุด</h3>
+                        <p class="text-xs text-slate-400 font-semibold">อัปเดตสถานะการรับงานแบบเรียลไทม์</p>
+                    </div>
+                    <a href="jobs.html" class="text-xs font-bold text-amber-600 hover:text-amber-700 underline">ดูทั้งหมด</a>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-[11px] font-extrabold uppercase text-slate-400 border-b border-slate-100 pb-3">
+                                <th class="pb-3">เวลา</th>
+                                <th class="pb-3">ผู้โดยสาร</th>
+                                <th class="pb-3">จุดรับ - จุดส่ง</th>
+                                <th class="pb-3">ค่าบริการ</th>
+                                <th class="pb-3 text-right">สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentJobsTable" class="divide-y divide-slate-100 text-xs font-semibold">
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-slate-400">กำลังโหลดรายการงานล่าสุด...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('admin');
+            if (!auth) return;
+
+            lucide.createIcons();
+            await loadDashboardMetrics();
+            await loadRecentJobs();
+        });
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        async function loadDashboardMetrics() {
+            try {
+                // 1. คำนวณรายได้รวม
+                const { data: revenueData } = await supabaseClient
+                    .from('jobs')
+                    .select('price')
+                    .eq('status', 'completed');
+
+                if (revenueData) {
+                    const totalRev = revenueData.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
+                    document.getElementById('statTotalRevenue').innerText = formatCurrency(totalRev);
+                }
+
+                // 2. จำนวนวินที่อนุมัติแล้ว
+                const { count: approvedCount } = await supabaseClient
+                    .from('drivers')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('approval_status', 'approved');
+
+                document.getElementById('statApprovedDrivers').innerText = `${approvedCount || 0} คน`;
+
+                // 3. จำนวนวินรอการอนุมัติ
+                const { count: pendingCount } = await supabaseClient
+                    .from('drivers')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('approval_status', 'pending');
+
+                if (pendingCount && pendingCount > 0) {
+                    document.getElementById('pendingAlertBanner').classList.remove('hidden');
+                    const navBadge = document.getElementById('pendingBadgeNav');
+                    navBadge.innerText = pendingCount;
+                    navBadge.classList.remove('hidden');
+                }
+
+                // 4. จำนวนงานวันนี้
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+                const { count: todayJobsCount } = await supabaseClient
+                    .from('jobs')
+                    .select('id', { count: 'exact', head: true })
+                    .gte('created_at', startOfToday);
+
+                document.getElementById('statTodayJobs').innerText = `${todayJobsCount || 0} เที่ยว`;
+
+                // 5. จำนวนผู้ใช้บริการ
+                const { count: usersCount } = await supabaseClient
+                    .from('profiles')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('role', 'customer');
+
+                document.getElementById('statTotalUsers').innerText = `${usersCount || 0} คน`;
+
+            } catch (err) {
+                console.error('Error loading metrics:', err);
+            }
+        }
+
+        async function loadRecentJobs() {
+            try {
+                const { data: jobs, error } = await supabaseClient
+                    .from('jobs')
+                    .select('*, customer:profiles!customer_id(full_name)')
+                    .order('created_at', { ascending: false })
+                    .limit(6);
+
+                const tableBody = document.getElementById('recentJobsTable');
+
+                if (error || !jobs || jobs.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">ยังไม่มีรายการงานเรียกรถในระบบ</td></tr>`;
+                    return;
+                }
+
+                tableBody.innerHTML = '';
+                jobs.forEach(job => {
+                    const statusBadge = getStatusBadgeHTML(job.status);
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50/80 transition';
+                    tr.innerHTML = `
+                        <td class="py-4 text-slate-400 font-medium">${formatDate(job.created_at)}</td>
+                        <td class="py-4 font-bold text-slate-800">${job.customer?.full_name || 'ผู้โดยสาร'}</td>
+                        <td class="py-4">
+                            <p class="font-bold text-slate-800 truncate max-w-[220px]">${job.pickup}</p>
+                            <p class="text-[11px] text-slate-400 truncate max-w-[220px]">➔ ${job.destination}</p>
+                        </td>
+                        <td class="py-4 font-black text-amber-600">${formatCurrency(job.price)}</td>
+                        <td class="py-4 text-right">${statusBadge}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error('Error loading recent jobs:', err);
+            }
+        }
+
+        function getStatusBadgeHTML(status) {
+            switch(status) {
+                case 'waiting': return `<span class="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-bold">รอวินรับงาน</span>`;
+                case 'accepted': return `<span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[10px] font-bold">วินกำลังไปรับ</span>`;
+                case 'traveling': return `<span class="px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[10px] font-bold">กำลังเดินทาง</span>`;
+                case 'completed': return `<span class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">สำเร็จ</span>`;
+                case 'cancelled': return `<span class="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[10px] font-bold">ยกเลิกแล้ว</span>`;
+                default: return `<span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold">${status}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

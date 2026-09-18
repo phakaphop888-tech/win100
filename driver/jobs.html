@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายการรับงาน - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: { DEFAULT: '#F59E0B', dark: '#D97706' } }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col justify-between text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
+        <div class="flex items-center space-x-3">
+            <a href="dashboard.html" class="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-base font-black text-slate-900 tracking-tight">รายการงานโดยสาร</h1>
+                <p class="text-[10px] text-slate-500 font-semibold">ค้นหาและรับงานกดเรียกรถรอบตัวคุณ</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main List Container -->
+    <main class="flex-grow max-w-2xl w-full mx-auto p-4 sm:p-6 space-y-4">
+        <div id="jobsContainer" class="space-y-4">
+            <div class="text-center py-16 space-y-3">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-primary mx-auto"></i>
+                <p class="text-xs font-bold text-slate-500">กำลังค้นหางานใหม่รอบตัวคุณ...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Bottom Nav -->
+    <nav class="md:hidden bg-white border-t border-slate-200 h-16 flex items-center justify-around px-2 z-30 shrink-0 shadow-lg">
+        <a href="dashboard.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="map" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">แผนที่</span>
+        </a>
+        <a href="jobs.html" class="flex flex-col items-center text-primary font-bold">
+            <i data-lucide="bike" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">รับงาน</span>
+        </a>
+        <a href="earnings.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="wallet" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">รายได้</span>
+        </a>
+        <a href="notifications.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">แจ้งเตือน</span>
+        </a>
+        <a href="profile.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        let currentDriverId = null;
+        let realDriverTableId = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('driver');
+            if (!auth) return;
+            currentDriverId = auth.profile.id;
+
+            // ค้นหา ID จากตาราง drivers
+            const { data: driverData } = await supabaseClient
+                .from('drivers')
+                .select('id')
+                .eq('user_id', currentDriverId)
+                .maybeSingle();
+
+            if (driverData) {
+                realDriverTableId = driverData.id;
+            }
+
+            lucide.createIcons();
+            await fetchAvailableJobs();
+
+            // Realtime Listener
+            supabaseClient.channel('public:jobs')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
+                    fetchAvailableJobs();
+                }).subscribe();
+        });
+
+        async function fetchAvailableJobs() {
+            const { data: jobs, error } = await supabaseClient
+                .from('jobs')
+                .select('*, customer:profiles!customer_id(full_name, phone)')
+                .in('status', ['waiting', 'accepted', 'traveling', 'arrived'])
+                .order('created_at', { ascending: false });
+
+            const container = document.getElementById('jobsContainer');
+
+            if (error) {
+                console.error('Fetch Jobs Error:', error);
+            }
+
+            if (error || !jobs || jobs.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-3xl p-10 text-center border border-slate-200/90 shadow-sm space-y-3">
+                        <i data-lucide="inbox" class="w-10 h-10 text-slate-300 mx-auto"></i>
+                        <h3 class="font-bold text-slate-800 text-sm">ยังไม่มีงานใหม่เข้ามาขณะนี้</h3>
+                        <p class="text-xs text-slate-400">เมื่อผู้โดยสารเรียกรถ รายการจะปรากฏขึ้นที่นี่อัตโนมัติ</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = '';
+            jobs.forEach(job => {
+                const isMyJob = job.driver_id === currentDriverId || job.driver_id === realDriverTableId;
+                const customerName = job.customer?.full_name || 'ผู้โดยสาร';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-6 border border-slate-200/90 shadow-md space-y-4';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="px-3 py-1 ${isMyJob ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'} border rounded-full text-[10px] font-extrabold uppercase">
+                            ${isMyJob ? 'งานกำลังทำ' : 'งานใหม่'}
+                        </span>
+                        <span class="text-[11px] font-medium text-slate-400">${formatDate(job.created_at)}</span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-3 h-3 rounded-full bg-blue-600 shrink-0 mt-0.5"></div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">จุดรับลูกค้า</p>
+                                <p class="font-bold text-slate-800 leading-relaxed">${job.pickup}</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-slate-100"></div>
+                        <div class="flex items-start space-x-3">
+                            <div class="w-3 h-3 rounded-full bg-rose-600 shrink-0 mt-0.5"></div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">ปลายทางส่ง</p>
+                                <p class="font-bold text-slate-800 leading-relaxed">${job.destination}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">ผู้โดยสาร</p>
+                            <p class="text-xs font-bold text-slate-800">${customerName}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">ค่าโดยสาร</p>
+                            <p class="text-xl font-black text-amber-600">${formatCurrency(job.price)}</p>
+                        </div>
+                    </div>
+
+                    ${isMyJob ? `
+                        <a href="job-detail.html?id=${job.id}" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl shadow-lg transition flex items-center justify-center space-x-2 text-xs">
+                            <i data-lucide="navigation" class="w-4 h-4"></i>
+                            <span>จัดการงานนี้ต่อ</span>
+                        </a>
+                    ` : `
+                        <button onclick="acceptJob('${job.id}')" class="w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-extrabold rounded-2xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center space-x-2 text-xs active:scale-[0.98]">
+                            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                            <span>กดรับงานนี้</span>
+                        </button>
+                    `}
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        async function acceptJob(jobId) {
+            Swal.fire({
+                title: 'ยืนยันรับงานนี้?',
+                text: 'คุณพร้อมเดินทางไปรับผู้โดยสารใช่หรือไม่',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันรับงาน',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#F59E0B'
+            }).then(async (res) => {
+                if (res.isConfirmed) {
+                    try {
+                        // 1. ตรวจสอบ ID จากตาราง drivers
+                        const { data: driverData } = await supabaseClient
+                            .from('drivers')
+                            .select('id, user_id')
+                            .eq('user_id', currentDriverId)
+                            .maybeSingle();
+
+                        const validDriverId = driverData?.id || driverData?.user_id || currentDriverId;
+
+                        // 2. อัปเดตงานในตาราง jobs
+                        const { data, error } = await supabaseClient
+                            .from('jobs')
+                            .update({ 
+                                driver_id: validDriverId, 
+                                status: 'accepted' 
+                            })
+                            .eq('id', jobId)
+                            .eq('status', 'waiting')
+                            .select();
+
+                        if (error) throw error;
+
+                        if (!data || data.length === 0) {
+                            Swal.fire({ 
+                                icon: 'warning', 
+                                title: 'ไม่สามารถรับงานได้', 
+                                text: 'งานนี้อาจถูกรับไปแล้ว หรือสถานะงานเปลี่ยนไป' 
+                            });
+                            return;
+                        }
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'รับงานสำเร็จ!',
+                            timer: 1200,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = `job-detail.html?id=${jobId}`;
+                        });
+
+                    } catch (err) {
+                        console.error('Accept Job Error:', err);
+                        Swal.fire({ 
+                            icon: 'error', 
+                            title: 'เกิดข้อผิดพลาด', 
+                            text: err.message || 'ไม่สามารถกดรับงานได้' 
+                        });
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

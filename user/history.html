@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ประวัติการเดินทาง - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#F59E0B',
+                            dark: '#D97706',
+                            light: '#FBBF24'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col justify-between text-slate-800">
+
+    <!-- Top Navbar -->
+    <header class="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
+        <div class="flex items-center space-x-3">
+            <a href="dashboard.html" class="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-base font-black text-slate-900 tracking-tight">ประวัติการเดินทาง</h1>
+                <p class="text-[10px] text-slate-500 font-semibold">รายการเรียกรถทั้งหมดของคุณ</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content Area (เพิ่ม pb-24 เพื่อป้องกันไม่ให้ Bottom Bar บังเนื้อหาด้านล่าง) -->
+    <main class="flex-grow max-w-2xl w-full mx-auto p-4 sm:p-6 pb-24 space-y-4">
+        <div id="historyList" class="space-y-4">
+            <div class="text-center py-12 space-y-3">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-primary mx-auto"></i>
+                <p class="text-xs font-bold text-slate-500">กำลังโหลดประวัติการเดินทาง...</p>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="pagination" class="hidden flex items-center justify-between pt-4 border-t border-slate-200">
+            <button id="prevBtn" onclick="changePage(-1)" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center space-x-1">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                <span>ก่อนหน้า</span>
+            </button>
+            <span id="pageIndicator" class="text-xs font-bold text-slate-500">หน้า 1 / 1</span>
+            <button id="nextBtn" onclick="changePage(1)" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center space-x-1">
+                <span>ถัดไป</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar (ปรับ fixed bottom-0 ล็อกติดล่างเสมอ) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 h-16 flex items-center justify-around px-2 z-50 shadow-lg">
+        <a href="dashboard.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="map" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">เรียกรถ</span>
+        </a>
+        <a href="history.html" class="flex flex-col items-center text-primary font-bold">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">ประวัติ</span>
+        </a>
+        <a href="notifications.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">แจ้งเตือน</span>
+        </a>
+        <a href="profile.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        let allJobs = [];
+        let currentPage = 1;
+        const itemsPerPage = 5;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('user');
+            if (!auth) return;
+
+            lucide.createIcons();
+            await loadRideHistory(auth.profile.id);
+        });
+
+        async function loadRideHistory(userId) {
+            const container = document.getElementById('historyList');
+
+            const { data: jobs, error } = await supabaseClient
+                .from('jobs')
+                .select('*')
+                .eq('customer_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error || !jobs || jobs.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-16 space-y-3 bg-white rounded-3xl p-8 border border-slate-200">
+                        <i data-lucide="history" class="w-10 h-10 text-slate-300 mx-auto"></i>
+                        <p class="font-bold text-slate-700 text-sm">ยังไม่มีประวัติการเดินทาง</p>
+                        <p class="text-xs text-slate-400">เมื่อคุณเรียกรถ ประวัติจะแสดงขึ้นที่นี่</p>
+                    </div>
+                `;
+                document.getElementById('pagination').classList.add('hidden');
+                lucide.createIcons();
+                return;
+            }
+
+            allJobs = jobs;
+            currentPage = 1;
+            renderPage();
+        }
+
+        function renderPage() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageJobs = allJobs.slice(startIndex, endIndex);
+
+            pageJobs.forEach(job => {
+                let statusBadge = '<span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold">กำลังดำเนินการ</span>';
+                if (job.status === 'completed') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">เดินทางเสร็จสิ้น</span>';
+                } else if (job.status === 'cancelled') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[10px] font-bold">ยกเลิกรายการ</span>';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-3';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        ${statusBadge}
+                        <span class="text-[11px] font-medium text-slate-400">${typeof formatDate === 'function' ? formatDate(job.created_at) : job.created_at}</span>
+                    </div>
+
+                    <div class="space-y-2 text-xs">
+                        <div class="flex items-start space-x-2">
+                            <i data-lucide="circle-dot" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+                            <span class="text-slate-800 font-semibold truncate">${job.pickup || '-'}</span>
+                        </div>
+                        <div class="flex items-start space-x-2">
+                            <i data-lucide="map-pin" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
+                            <span class="text-slate-800 font-semibold truncate">${job.destination || '-'}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <span class="text-slate-500 font-medium">ค่าโดยสาร</span>
+                        <span class="text-base font-black text-primary">฿${job.price || 0}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            const totalPages = Math.ceil(allJobs.length / itemsPerPage);
+            const paginationEl = document.getElementById('pagination');
+
+            if (totalPages > 1) {
+                paginationEl.classList.remove('hidden');
+                document.getElementById('pageIndicator').innerText = `หน้า ${currentPage} / ${totalPages}`;
+                document.getElementById('prevBtn').disabled = currentPage === 1;
+                document.getElementById('nextBtn').disabled = currentPage === totalPages;
+            } else {
+                paginationEl.classList.add('hidden');
+            }
+
+            lucide.createIcons();
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

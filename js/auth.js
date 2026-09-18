@@ -1,69 +1,91 @@
-import { getSupabase } from "./supabase.js";
-import { tError } from "./utils.js";
+// js/auth.js
 
-export async function getSession() {
-  const { data, error } = await getSupabase().auth.getSession();
-  if (error) throw error;
-  return data.session;
+// ฟังก์ชันเช็กสถานะการเข้าสู่ระบบและสิทธิ์การใช้งาน (Role)
+async function checkAuth(requiredRole = null) {
+    try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError || !session) {
+            window.location.href = '../login.html';
+            return null;
+        }
+
+        // 1. ดึงข้อมูล Profile (ใช้ .maybeSingle() เพื่อป้องกัน Error 406)
+        const { data: profile, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+        if (profileError || !profile) {
+            console.error('Profile fetch error:', profileError);
+            window.location.href = '../login.html';
+            return null;
+        }
+
+        // 2. เช็ก Role สิทธิ์การเข้าถึง
+        // หากระบุ requiredRole แต่ผู้ใช้ไม่ใช่ Role นั้น และไม่ใช่ admin จะปฏิเสธการเข้าถึงทันที
+        if (requiredRole && profile.role !== requiredRole && profile.role !== 'admin') {
+            await Swal.fire({
+                icon: 'error',
+                title: 'ไม่มีสิทธิ์เข้าถึง',
+                text: 'คุณไม่มีสิทธิ์เข้าใช้งานหน้านี้',
+                confirmButtonColor: '#F59E0B'
+            });
+            window.location.href = '../login.html';
+            return null;
+        }
+
+        // 3. ตรวจสอบสถานะการอนุมัติเฉพาะ Driver
+        if (profile.role === 'driver') {
+            const { data: driver, error: driverError } = await supabaseClient
+                .from('drivers')
+                .select('approval_status')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+
+            if (driverError) {
+                console.error('Driver status check error:', driverError);
+            }
+
+            // หากสถานะยังไม่อนุมัติ แจ้งเตือน Popup แล้วสวิทช์ไปหน้า profile.html เพื่อดูสถานะ
+            if (driver && driver.approval_status === 'pending') {
+                const isProfilePage = window.location.pathname.includes('profile.html');
+                if (!isProfilePage) {
+                    await Swal.fire({
+                        icon: 'info',
+                        title: 'รอการอนุมัติบัญชี',
+                        text: 'สถานะบัญชีคนขับของคุณ: pending (กรุณารอเจ้าหน้าที่ตรวจสอบ)',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#F59E0B'
+                    });
+                    window.location.href = 'profile.html';
+                    return null;
+                }
+            }
+        }
+
+        return { session, profile };
+    } catch (err) {
+        console.error('Auth check unexpected error:', err);
+        window.location.href = '../login.html';
+        return null;
+    }
 }
 
-export async function getUser() {
-  const session = await getSession();
-  return session?.user || null;
+// ฟังก์ชันออกจากระบบ
+async function logoutUser() {
+    Swal.fire({
+        title: 'ยืนยันการออกจากระบบ?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#DC2626'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            await supabaseClient.auth.signOut();
+            window.location.href = '../login.html';
+        }
+    });
 }
-
-export async function getProfile() {
-  const user = await getUser();
-  if (!user) return null;
-  const { data, error } = await getSupabase()
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function signIn(email, password) {
-  const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
-  if (error) throw Object.assign(error, { message: "not_authenticated" });
-  return data;
-}
-
-export async function signUp({ email, password, fullName, phone, role }) {
-  const safeRole = role === "driver" ? "driver" : "passenger";
-  const { data, error } = await getSupabase().auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName, phone, role: safeRole },
-    },
-  });
-  if (error) throw error;
-  return data;
-}
-
-export async function resetPassword(email) {
-  const redirectTo = new URL("login.html", location.href).href;
-  const { error } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo });
-  if (error) throw error;
-}
-
-export async function signOut() {
-  await getSupabase().auth.signOut();
-}
-
-export async function updateProfile(patch) {
-  const user = await getUser();
-  if (!user) throw new Error("not_authenticated");
-  const { data, error } = await getSupabase()
-    .from("profiles")
-    .update(patch)
-    .eq("id", user.id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export { tError };

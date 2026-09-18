@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลงทะเบียนขับวิน - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#F59E0B',
+                            dark: '#D97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between selection:bg-amber-500 selection:text-white">
+
+    <!-- Universal Light Sticky Navbar -->
+    <header class="bg-white/90 backdrop-blur-xl border-b border-slate-200/80 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <a href="index.html" class="flex items-center space-x-3 group">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/25 group-hover:scale-105 transition-transform duration-300">
+                    <i data-lucide="bike" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-xl font-black tracking-tight text-slate-900">วิน<span class="text-primary">100</span></span>
+                    </div>
+                    <p class="text-[10px] font-semibold text-slate-400 tracking-wider">MOTORBIKE WIN</p>
+                </div>
+            </a>
+
+            <!-- Desktop Links -->
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-semibold">
+                <a href="index.html" class="text-slate-600 hover:text-slate-900 transition">หน้าแรก</a>
+                <a href="login.html" class="text-slate-600 hover:text-slate-900 transition">เข้าสู่ระบบ</a>
+                <a href="register.html" class="text-slate-600 hover:text-slate-900 transition">สมัครผู้ใช้</a>
+                <a href="register-driver.html" class="text-primary font-bold">สมัครขับวิน</a>
+            </nav>
+
+            <!-- Mobile Hamburger Button -->
+            <button id="hamburgerBtn" class="md:hidden p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 transition focus:outline-none">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Drawer Menu -->
+        <div id="mobileDrawer" class="hidden md:hidden bg-white/95 border-b border-slate-200 px-4 pt-3 pb-6 space-y-3">
+            <a href="index.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-slate-100 font-semibold">
+                <i data-lucide="home" class="w-5 h-5 text-slate-500"></i>
+                <span>หน้าแรก</span>
+            </a>
+            <a href="login.html" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-slate-100 font-semibold">
+                <i data-lucide="log-in" class="w-5 h-5 text-slate-500"></i>
+                <span>เข้าสู่ระบบ</span>
+            </a>
+            <a href="register.html" class="flex items-center justify-center space-x-2 px-4 py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 font-bold">
+                <i data-lucide="user-plus" class="w-5 h-5"></i>
+                <span>สมัครผู้ใช้งาน</span>
+            </a>
+            <a href="register-driver.html" class="flex items-center justify-center space-x-2 px-4 py-3.5 rounded-xl bg-primary text-white font-bold shadow-lg shadow-amber-500/20">
+                <i data-lucide="bike" class="w-5 h-5"></i>
+                <span>สมัครขับวิน</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Multi-step Form Section -->
+    <main class="flex-grow max-w-3xl w-full mx-auto px-4 py-12 relative">
+        <div class="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-2xl space-y-8 relative z-10">
+            <div class="text-center space-y-2">
+                <div class="w-14 h-14 bg-amber-50 border border-amber-200 text-primary rounded-2xl mx-auto flex items-center justify-center shadow-sm">
+                    <i data-lucide="id-card" class="w-7 h-7"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-900 tracking-tight">ลงทะเบียนสมัครเป็นคนขับวิน</h2>
+                <p class="text-xs text-slate-500 font-medium">กรอกข้อมูลส่วนตัว ข้อมูลรถ และอัปโหลดเอกสารเพื่อรอการอนุมัติ</p>
+            </div>
+
+            <form id="driverRegisterForm" class="space-y-8">
+                <!-- Section 1 -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-primary border-b border-slate-100 pb-2 flex items-center space-x-2">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                        <span>1. ข้อมูลส่วนตัวและบัญชีผู้ใช้</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ชื่อจริง</label>
+                            <input type="text" id="firstName" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">นามสกุล</label>
+                            <input type="text" id="lastName" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">เบอร์โทรศัพท์ (10 หลัก)</label>
+                            <input type="tel" id="phone" required maxlength="10" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary" placeholder="0812345678">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">วันเดือนปีเกิด</label>
+                            <input type="date" id="dob" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">เลขบัตรประจำตัวประชาชน (13 หลัก)</label>
+                        <input type="text" id="identityNumber" maxlength="13" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">อีเมล</label>
+                            <input type="email" id="email" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">รหัสผ่าน</label>
+                            <input type="password" id="password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2 -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-primary border-b border-slate-100 pb-2 flex items-center space-x-2">
+                        <i data-lucide="map-pin" class="w-4 h-4"></i>
+                        <span>2. ที่อยู่ตามทะเบียนบ้าน</span>
+                    </h3>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ที่อยู่</label>
+                        <input type="text" id="address" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">อำเภอ/เขต</label>
+                            <input type="text" id="district" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">จังหวัด</label>
+                            <input type="text" id="province" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">รหัสไปรษณีย์</label>
+                            <input type="text" id="postalCode" maxlength="5" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3 -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-primary border-b border-slate-100 pb-2 flex items-center space-x-2">
+                        <i data-lucide="bike" class="w-4 h-4"></i>
+                        <span>3. ข้อมูลรถจักรยานยนต์</span>
+                    </h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ยี่ห้อ</label>
+                            <input type="text" id="vehicleBrand" placeholder="Honda" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">รุ่น</label>
+                            <input type="text" id="vehicleModel" placeholder="Click 125i" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">สีรถ</label>
+                            <input type="text" id="vehicleColor" placeholder="ดำ-แดง" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ป้ายทะเบียน</label>
+                            <input type="text" id="licensePlate" placeholder="1กข 1234" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">จังหวัดทะเบียน</label>
+                            <input type="text" id="plateProvince" placeholder="กรุงเทพมหานคร" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-primary">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4 -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-primary border-b border-slate-100 pb-2 flex items-center space-x-2">
+                        <i data-lucide="file-check" class="w-4 h-4"></i>
+                        <span>4. เอกสารยืนยันตัวตน</span>
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">รูปถ่ายบัตรประชาชน</label>
+                            <input type="file" id="idCardDoc" accept="image/*" required class="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-primary border border-slate-200 rounded-xl p-1 bg-slate-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">รูปถ่ายตนเองคู่บัตร</label>
+                            <input type="file" id="selfieDoc" accept="image/*" required class="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-primary border border-slate-200 rounded-xl p-1 bg-slate-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">เอกสารทะเบียนรถ / พ.ร.บ.</label>
+                            <input type="file" id="vehicleDoc" accept="image/*" required class="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-primary border border-slate-200 rounded-xl p-1 bg-slate-50">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full py-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center space-x-2">
+                    <span>ส่งใบสมัครลงทะเบียน</span>
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 font-medium">
+        <p>&copy; 2026 วิน100 (MOTORBIKE WIN SYSTEM). All rights reserved.</p>
+    </footer>
+
+    <script src="js/supabase.js"></script>
+    <script>
+        lucide.createIcons();
+
+        document.getElementById('hamburgerBtn').addEventListener('click', () => {
+            document.getElementById('mobileDrawer').classList.toggle('hidden');
+        });
+
+        document.getElementById('driverRegisterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const phone = document.getElementById('phone').value;
+            const identityNumber = document.getElementById('identityNumber').value;
+
+            if (phone.length !== 10) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เบอร์โทรศัพท์ไม่ถูกต้อง',
+                    text: 'กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก'
+                });
+                return;
+            }
+
+            if (identityNumber.length !== 13) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เลขบัตรประชาชนไม่ถูกต้อง',
+                    text: 'กรุณากรอกเลขบัตรประชาชนให้ครบ 13 หลัก'
+                });
+                return;
+            }
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>กำลังอัปโหลดเอกสารและส่งข้อมูล...</span>`;
+            lucide.createIcons();
+
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const firstName = document.getElementById('firstName').value;
+                const lastName = document.getElementById('lastName').value;
+
+                // 1. Sign Up User Account
+                const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: `${firstName} ${lastName}`,
+                            phone: phone,
+                            role: 'driver'
+                        }
+                    }
+                });
+
+                if (authError) throw authError;
+                if (!authData.user) throw new Error('ไม่สามารถสร้างบัญชีผู้ใช้ได้');
+
+                const userId = authData.user.id;
+
+                // 2. Upload Documents to Supabase Storage Bucket ('driver-documents' or 'drivers')
+                const uploadFile = async (fileInputId, folder) => {
+                    const fileInput = document.getElementById(fileInputId);
+                    if (!fileInput.files || fileInput.files.length === 0) {
+                        throw new Error(`กรุณาเลือกไฟล์ ${fileInputId}`);
+                    }
+                    const file = fileInput.files[0];
+                    const fileExt = file.name.split('.').pop();
+                    const filePath = `driver/${userId}/${folder}_${Date.now()}.${fileExt}`;
+                    
+                    // อัปโหลดไปยัง Storage Bucket ชื่อ 'driver-documents'
+                    const { error: uploadError } = await supabaseClient.storage.from('driver-documents').upload(filePath, file);
+                    if (uploadError) throw uploadError;
+                    return filePath;
+                };
+
+                const idCardPath = await uploadFile('idCardDoc', 'id-card');
+                const selfiePath = await uploadFile('selfieDoc', 'selfie');
+                const vehiclePath = await uploadFile('vehicleDoc', 'vehicle');
+
+                // 3. Create Drivers Profile Record
+                const { error: driverError } = await supabaseClient.from('drivers').insert([{
+                    user_id: userId,
+                    vehicle_brand: document.getElementById('vehicleBrand').value,
+                    vehicle_model: document.getElementById('vehicleModel').value,
+                    vehicle_color: document.getElementById('vehicleColor').value,
+                    license_plate: document.getElementById('licensePlate').value,
+                    province: document.getElementById('plateProvince').value,
+                    approval_status: 'pending',
+                    online_status: 'offline',
+                    identity_number: identityNumber,
+                    date_of_birth: document.getElementById('dob').value,
+                    address: document.getElementById('address').value,
+                    district: document.getElementById('district').value,
+                    postal_code: document.getElementById('postalCode').value,
+                    id_card_document: idCardPath,
+                    selfie_document: selfiePath,
+                    vehicle_document: vehiclePath
+                }]);
+
+                if (driverError) throw driverError;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ส่งใบสมัครสำเร็จ',
+                    text: 'เอกสารของคุณถูกส่งเข้าสู่ระบบแล้ว กรุณารอเจ้าหน้าที่ตรวจสอบและอนุมัติ',
+                    confirmButtonColor: '#F59E0B'
+                }).then(() => {
+                    window.location.href = 'login.html';
+                });
+
+            } catch (err) {
+                console.error('Submit Error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: err.message
+                });
+                btn.disabled = false;
+                btn.innerHTML = `<span>ส่งใบสมัครลงทะเบียน</span><i data-lucide="send" class="w-5 h-5"></i>`;
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

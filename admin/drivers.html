@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>อนุมัติ & จัดการวิน - วิน100 Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#F59E0B', dark: '#D97706', light: '#FBBF24' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex text-slate-800">
+
+    <div id="sidebarBackdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden lg:hidden"></div>
+
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 w-72 bg-slate-900 text-slate-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 flex flex-col justify-between shrink-0 shadow-2xl lg:shadow-none">
+        <div class="p-6 space-y-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
+                        <i data-lucide="shield-check" class="w-6 h-6 stroke-[2.5]"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base font-black text-white tracking-wider">วิน100 <span class="text-primary">Admin</span></h1>
+                        <p class="text-[10px] text-slate-400 font-semibold">ระบบจัดการข้อมูลส่วนกลาง</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+
+            <nav class="space-y-1.5 text-xs font-bold">
+                <a href="dashboard.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>แผงควบคุมหลัก</span>
+                </a>
+                <a href="drivers.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl bg-primary text-white shadow-lg shadow-amber-500/20 transition">
+                    <i data-lucide="bike" class="w-5 h-5"></i><span>อนุมัติ & จัดการวิน</span>
+                </a>
+                <a href="jobs.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="list-todo" class="w-5 h-5"></i><span>รายการงานทั้งหมด</span>
+                </a>
+                <a href="users.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="users" class="w-5 h-5"></i><span>จัดการผู้ใช้บริการ</span>
+                </a>
+                <a href="reports.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5"></i><span>รายงานสรุปการเงิน</span>
+                </a>
+                <a href="notifications.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="bell" class="w-5 h-5"></i><span>ประกาศระบบ</span>
+                </a>
+                <a href="settings.html" class="flex items-center space-x-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 hover:text-white transition text-slate-400">
+                    <i data-lucide="settings" class="w-5 h-5"></i><span>ตั้งค่าอัตราค่าบริการ</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="p-6 border-t border-slate-800">
+            <button onclick="logoutUser()" class="w-full py-3.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold rounded-2xl text-xs transition flex items-center justify-center space-x-2 border border-rose-500/20">
+                <i data-lucide="log-out" class="w-4 h-4"></i><span>ออกจากระบบ</span>
+            </button>
+        </div>
+    </aside>
+
+    <div class="flex-grow flex flex-col min-w-0 overflow-x-hidden">
+        <header class="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30 shadow-sm">
+            <div class="flex items-center space-x-3 min-w-0">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 shrink-0"><i data-lucide="menu" class="w-5 h-5"></i></button>
+                <h2 class="text-xs sm:text-base font-black text-slate-900 truncate">จัดการและตรวจสอบรายชื่อผู้ขับขี่</h2>
+            </div>
+            <div class="flex items-center space-x-3 shrink-0">
+                <span class="text-xs font-bold text-slate-500 hidden sm:inline">สิทธิ์: <span class="text-slate-900">ผู้ดูแลระบบ</span></span>
+                <div class="w-8 h-8 sm:w-9 sm:h-9 bg-slate-900 text-white rounded-xl font-black text-xs flex items-center justify-center shadow-md">A</div>
+            </div>
+        </header>
+
+        <main class="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
+            <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-5">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                    <h3 class="text-sm font-black text-slate-900">รายชื่อผู้ขับขี่ทั้งหมดในระบบ</h3>
+                    <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <input type="text" id="searchDriver" oninput="loadDrivers()" placeholder="ค้นหาชื่อ, เบอร์โทร, ทะเบียน..." class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary flex-grow sm:w-64">
+                        <select id="approvalFilter" onchange="loadDrivers()" class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none">
+                            <option value="all">สถานะทั้งหมด</option>
+                            <option value="pending" selected>รอการตรวจสอบ</option>
+                            <option value="approved">อนุมัติแล้ว</option>
+                            <option value="rejected">ปฏิเสธสิทธิ์</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-slate-400 uppercase border-b border-slate-100 font-bold">
+                                <th class="pb-3">ผู้ขับขี่</th>
+                                <th class="pb-3">เบอร์โทรศัพท์</th>
+                                <th class="pb-3">ป้ายทะเบียนรถ</th>
+                                <th class="pb-3">สถานะตรวจสอบ</th>
+                                <th class="pb-3 text-right">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driversTable" class="divide-y divide-slate-100 font-medium text-slate-700">
+                            <tr><td colspan="5" class="py-6 text-center text-slate-400">กำลังโหลดข้อมูลผู้ขับขี่...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('admin');
+            if (!auth) return;
+            lucide.createIcons();
+            await loadDrivers();
+        });
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebarBackdrop').classList.toggle('hidden');
+        }
+
+        async function loadDrivers() {
+            const search = document.getElementById('searchDriver').value.trim();
+            const filter = document.getElementById('approvalFilter').value;
+
+            let query = supabaseClient
+                .from('drivers')
+                .select('*, profiles:user_id(full_name, phone)')
+                .order('created_at', { ascending: false });
+
+            if (filter !== 'all') {
+                query = query.eq('approval_status', filter);
+            }
+
+            try {
+                const { data: drivers, error } = await query;
+                if (error) throw error;
+
+                const table = document.getElementById('driversTable');
+                if (!drivers || drivers.length === 0) {
+                    table.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">ไม่พบข้อมูลผู้ขับขี่ตามเงื่อนไข</td></tr>`;
+                    return;
+                }
+
+                // กรองฝั่ง client เพิ่มเติมกรณีค้นหาชื่อหรือเบอร์โทร
+                const filtered = drivers.filter(d => {
+                    if (!search) return true;
+                    const name = d.profiles?.full_name || '';
+                    const phone = d.profiles?.phone || '';
+                    const plate = d.license_plate || '';
+                    return name.includes(search) || phone.includes(search) || plate.includes(search);
+                });
+
+                if (filtered.length === 0) {
+                    table.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">ไม่พบผลการค้นหา "${search}"</td></tr>`;
+                    return;
+                }
+
+                table.innerHTML = filtered.map(d => {
+                    const name = d.profiles?.full_name || 'ไม่ระบุชื่อ';
+                    const phone = d.profiles?.phone || '-';
+                    const plate = d.license_plate || 'ไม่ระบุทะเบียน';
+                    
+                    let badgeClass = 'bg-amber-50 text-amber-700 border border-amber-200';
+                    let badgeText = 'รอตรวจสอบ';
+                    if (d.approval_status === 'approved') {
+                        badgeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                        badgeText = 'อนุมัติแล้ว';
+                    } else if (d.approval_status === 'rejected') {
+                        badgeClass = 'bg-rose-50 text-rose-700 border border-rose-200';
+                        badgeText = 'ปฏิเสธสิทธิ์';
+                    }
+
+                    return `
+                        <tr class="hover:bg-slate-50/80 transition">
+                            <td class="py-3.5 font-bold text-slate-900 flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-xl bg-amber-500 text-white font-black flex items-center justify-center text-xs shrink-0">${name.charAt(0)}</div>
+                                <div>
+                                    <div class="text-slate-900">${name}</div>
+                                    <div class="text-[10px] text-slate-400">ID: ${d.user_id.substring(0, 8)}...</div>
+                                </div>
+                            </td>
+                            <td class="py-3.5 font-bold text-slate-600">${phone}</td>
+                            <td class="py-3.5 font-bold text-slate-800">${plate} (${d.province || '-'})</td>
+                            <td class="py-3.5"><span class="px-3 py-1 rounded-full text-[10px] font-bold ${badgeClass}">${badgeText}</span></td>
+                            <td class="py-3.5 text-right">
+                                <a href="driver-detail.html?id=${d.user_id}" class="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-900 hover:bg-amber-600 text-white font-bold rounded-xl transition text-[11px]">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    <span>ตรวจสอบ</span>
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                lucide.createIcons();
+
+            } catch (err) {
+                console.error('Error loading drivers:', err);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรไฟล์ - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#F59E0B',
+                            dark: '#D97706',
+                            light: '#FBBF24'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col justify-between text-slate-800">
+
+    <!-- Top Navbar -->
+    <header class="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
+        <div class="flex items-center space-x-3">
+            <a href="dashboard.html" class="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-base font-black text-slate-900 tracking-tight">โปรไฟล์ส่วนตัว</h1>
+                <p class="text-[10px] text-slate-500 font-semibold">จัดการข้อมูลบัญชีผู้ใช้</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        
+        <!-- Profile Header Card -->
+        <div class="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xl text-center space-y-4">
+            <div class="w-20 h-20 bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-black text-2xl rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-amber-500/20" id="avatarBox">
+                U
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-slate-900" id="userNameText">กำลังโหลด...</h2>
+                <p class="text-xs text-slate-500 font-medium" id="userEmailText">loading...</p>
+            </div>
+            <div class="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-extrabold text-amber-800">
+                <i data-lucide="shield-check" class="w-4 h-4 text-primary"></i>
+                <span>ผู้ใช้งานทั่วไป (Passenger)</span>
+            </div>
+        </div>
+
+        <!-- Update Profile Form -->
+        <div class="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xl space-y-4">
+            <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-100 pb-3">
+                <i data-lucide="user-cog" class="w-4 h-4 text-primary"></i>
+                <span>แก้ไขข้อมูลส่วนตัว</span>
+            </h3>
+
+            <form id="profileForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">ชื่อ - นามสกุล</label>
+                    <input type="text" id="fullName" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-primary">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">เบอร์โทรศัพท์ (10 หลัก)</label>
+                    <input type="tel" id="phone" maxlength="10" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-primary">
+                </div>
+
+                <button type="submit" id="saveBtn" class="w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition">
+                    บันทึกข้อมูล
+                </button>
+            </form>
+        </div>
+
+        <!-- Logout Action -->
+        <button onclick="logoutUser()" class="w-full py-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-2xl text-xs border border-rose-200 transition flex items-center justify-center space-x-2">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span>ออกจากระบบ</span>
+        </button>
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="md:hidden bg-white border-t border-slate-200 h-16 flex items-center justify-around px-2 z-30 shrink-0 shadow-lg">
+        <a href="dashboard.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="map" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">เรียกรถ</span>
+        </a>
+        <a href="active-job.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="navigation" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">งานปัจจุบัน</span>
+        </a>
+        <a href="history.html" class="flex flex-col items-center text-slate-400 hover:text-primary transition font-semibold">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">ประวัติ</span>
+        </a>
+        <a href="profile.html" class="flex flex-col items-center text-primary font-bold">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        let currentUserId = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('user');
+            if (!auth) return;
+
+            lucide.createIcons();
+            currentUserId = auth.profile.id;
+
+            document.getElementById('userNameText').innerText = auth.profile.full_name || 'ผู้ใช้งาน';
+            document.getElementById('userEmailText').innerText = auth.session.user.email;
+            document.getElementById('avatarBox').innerText = (auth.profile.full_name || 'U').charAt(0).toUpperCase();
+
+            document.getElementById('fullName').value = auth.profile.full_name || '';
+            document.getElementById('phone').value = auth.profile.phone || '';
+        });
+
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = document.getElementById('fullName').value;
+            const phone = document.getElementById('phone').value;
+
+            if (phone.length !== 10) {
+                Swal.fire({ icon: 'error', title: 'เบอร์โทรศัพท์ไม่ถูกต้อง', text: 'กรุณากรอกเบอร์ให้ครบ 10 หลัก' });
+                return;
+            }
+
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.innerText = 'กำลังบันทึก...';
+
+            try {
+                const { error } = await supabaseClient
+                    .from('profiles')
+                    .update({ full_name: fullName, phone: phone })
+                    .eq('id', currentUserId);
+
+                if (error) throw error;
+
+                Swal.fire({ icon: 'success', title: 'บันทึกข้อมูลเรียบร้อย', timer: 1200, showConfirmButton: false }).then(() => {
+                    window.location.reload();
+                });
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+                btn.disabled = false;
+                btn.innerText = 'บันทึกข้อมูล';
+            }
+        });
+    </script>
+</body>
+</html>

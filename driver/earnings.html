@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สรุปรายได้รายวัน - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col text-slate-800 pb-24">
+
+    <!-- Header Panel -->
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sticky top-0 z-30 shadow-sm shrink-0">
+        <div class="flex items-center space-x-3 min-w-0">
+            <a href="dashboard.html" class="p-2 text-slate-500 hover:text-slate-800 rounded-xl bg-slate-100 active:scale-95 transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-base font-black text-slate-900 truncate">สรุปรายได้รายวัน</h1>
+        </div>
+        <span id="currentDateText" class="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 shrink-0"></span>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-md mx-auto p-4 space-y-4 flex-grow overflow-x-hidden">
+        
+        <!-- Daily Earnings Card -->
+        <div class="bg-gradient-to-br from-amber-500 via-amber-500 to-amber-600 rounded-3xl p-5 text-white shadow-xl shadow-amber-500/20 relative overflow-hidden">
+            <div class="absolute -right-6 -bottom-6 opacity-10 pointer-events-none">
+                <i data-lucide="wallet" class="w-36 h-36"></i>
+            </div>
+            
+            <p class="text-[11px] font-bold text-amber-100 uppercase tracking-wider">รายได้รวมวันนี้ (00:00 - 23:59)</p>
+            <h2 id="dailyTotalAmount" class="text-3xl font-black mt-1 mb-4 tracking-tight">฿0</h2>
+            
+            <div class="pt-3 border-t border-white/20 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                    <p class="text-amber-100 text-[10px]">จำนวนงานที่สำเร็จ</p>
+                    <p id="dailyJobsCount" class="text-base font-black mt-0.5">0 งาน</p>
+                </div>
+                <div>
+                    <p class="text-amber-100 text-[10px]">สถานะการตัดยอด</p>
+                    <p class="text-base font-black mt-0.5 text-emerald-200">อัปเดตเรียลไทม์</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Title -->
+        <div class="flex items-center justify-between pt-1">
+            <h3 class="font-extrabold text-slate-800 text-sm flex items-center space-x-2">
+                <i data-lucide="history" class="w-4 h-4 text-amber-500"></i>
+                <span>ประวัติวิ่งงานวันนี้</span>
+            </h3>
+        </div>
+
+        <!-- Job History List Container -->
+        <div id="jobHistoryList" class="space-y-2.5">
+            <div class="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
+        </div>
+
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="bg-white/95 backdrop-blur-md border-t border-slate-200 h-16 flex items-center justify-around px-2 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
+        <a href="dashboard.html" class="flex flex-col items-center text-slate-400 hover:text-amber-500 font-semibold">
+            <i data-lucide="map" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">แผนที่</span>
+        </a>
+        <a href="jobs.html" class="flex flex-col items-center text-slate-400 hover:text-amber-500 font-semibold">
+            <i data-lucide="bike" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">รับงาน</span>
+        </a>
+        <a href="earnings.html" class="flex flex-col items-center text-amber-500 font-bold">
+            <i data-lucide="wallet" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">รายได้</span>
+        </a>
+        <a href="notifications.html" class="flex flex-col items-center text-slate-400 hover:text-amber-500 font-semibold">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">แจ้งเตือน</span>
+        </a>
+        <a href="profile.html" class="flex flex-col items-center text-slate-400 hover:text-amber-500 font-semibold">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[10px] mt-1">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            
+            const now = new Date();
+            document.getElementById('currentDateText').innerText = now.toLocaleDateString('th-TH', {
+                day: 'numeric', month: 'short', year: '2-digit'
+            });
+
+            await loadDailyEarnings();
+        });
+
+        async function loadDailyEarnings() {
+            const auth = await checkAuth('driver');
+            if (!auth) return;
+
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+            const { data: driverData } = await supabaseClient
+                .from('drivers')
+                .select('id')
+                .eq('user_id', auth.profile.id)
+                .maybeSingle();
+
+            const possibleIds = [auth.profile.id];
+            if (driverData) possibleIds.push(driverData.id);
+
+            const { data: jobs, error } = await supabaseClient
+                .from('jobs')
+                .select('*')
+                .in('driver_id', possibleIds)
+                .eq('status', 'completed')
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading earnings:', error);
+                return;
+            }
+
+            const total = jobs ? jobs.reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0) : 0;
+            document.getElementById('dailyTotalAmount').innerText = `฿${total.toLocaleString()}`;
+            document.getElementById('dailyJobsCount').innerText = `${jobs ? jobs.length : 0} งาน`;
+
+            const container = document.getElementById('jobHistoryList');
+            if (!jobs || jobs.length === 0) {
+                container.innerHTML = `<div class="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-400 text-xs">ยังไม่มีรายการงานที่สำเร็จในวันนี้</div>`;
+                return;
+            }
+
+            // ฟังก์ชันย่อข้อความที่อยู่นวนยาวๆ ให้กระชับขึ้น
+            const cleanAddress = (addr) => {
+                if (!addr) return 'ไม่ระบุพิกัด';
+                return addr.split(',')[0].trim(); // ดึงเฉพาะชื่อสถานที่แรกก่อนเครื่องหมาย ,
+            };
+
+            container.innerHTML = jobs.map(job => {
+                const time = new Date(job.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                return `
+                    <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+                        <div class="flex items-center space-x-3 min-w-0 flex-1">
+                            <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                                <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-bold text-slate-800 truncate">${cleanAddress(job.destination)}</p>
+                                <p class="text-[10px] text-slate-400 truncate mt-0.5">รับจาก: ${cleanAddress(job.pickup)} • ${time} น.</p>
+                            </div>
+                        </div>
+                        <span class="text-sm font-black text-emerald-600 shrink-0">+฿${job.price}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>

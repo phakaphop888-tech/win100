@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แผงควบคุมผู้ขับ - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#F59E0B', dark: '#D97706', light: '#FBBF24' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- เสียงแจ้งเตือนงานเข้า -->
+    <audio id="jobAlertAudio" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" loop></audio>
+
+    <!-- Top Navigation Header -->
+    <header class="bg-white/95 backdrop-blur-md border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-8 z-30 shrink-0 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-amber-500/25">
+                <i data-lucide="bike" class="w-6 h-6 stroke-[2.5]"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-black text-slate-900 tracking-tight">ระบบคนขับ <span class="text-primary">วิน100</span></h1>
+                <p id="greetingText" class="text-[11px] text-slate-500 font-medium">กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+
+        <!-- Online / Offline Toggle Switch -->
+        <div class="flex items-center space-x-3">
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="onlineToggle" class="sr-only peer" onchange="toggleOnlineStatus(this.checked)">
+                <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+            <span id="statusLabel" class="text-xs font-black text-slate-400">ปิดรับงาน</span>
+        </div>
+    </header>
+
+    <!-- Main Map Workspace -->
+    <div class="flex-grow relative flex flex-col lg:flex-row overflow-hidden">
+        <div id="map" class="flex-grow w-full h-full z-10"></div>
+
+        <!-- Floating Action Buttons -->
+        <div class="absolute right-6 top-6 z-20 flex flex-col space-y-3">
+            <button onclick="centerLocation()" class="bg-white p-3.5 rounded-2xl shadow-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition active:scale-95 flex items-center justify-center">
+                <i data-lucide="locate-fixed" class="w-5 h-5"></i>
+            </button>
+            <button onclick="triggerSOS()" class="bg-rose-600 text-white p-3.5 rounded-2xl shadow-xl hover:bg-rose-700 transition active:scale-95 flex items-center justify-center">
+                <i data-lucide="siren" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Driver Control Sheet Panel -->
+        <div class="w-full lg:w-[420px] bg-white/95 backdrop-blur-xl rounded-t-3xl lg:rounded-none shadow-2xl border-t lg:border-l border-slate-200 z-20 p-6 flex flex-col justify-between shrink-0 overflow-y-auto max-h-[45vh] lg:max-h-full">
+            <div class="space-y-5">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-amber-50/80 p-4 rounded-2xl border border-amber-200/80">
+                        <p class="text-[10px] font-bold text-amber-700 uppercase">รายได้วันนี้</p>
+                        <p id="todayEarnings" class="text-xl font-black text-slate-900 mt-1">฿0</p>
+                    </div>
+                    <div class="bg-blue-50/80 p-4 rounded-2xl border border-blue-200/80">
+                        <p class="text-[10px] font-bold text-blue-700 uppercase">งานที่สำเร็จ</p>
+                        <p id="todayJobsCount" class="text-xl font-black text-slate-900 mt-1">0 งาน</p>
+                    </div>
+                </div>
+
+                <div id="jobAlertCard" class="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-center space-y-3">
+                    <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <i data-lucide="wifi-off" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm">คุณกำลังอยู่ในสถานะ "ออฟไลน์"</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">เปิดสวิตช์มุมขวาบนเพื่อเริ่มรับงานโดยสารใกล้คุณ</p>
+                    </div>
+                </div>
+            </div>
+
+            <a href="jobs.html" class="w-full mt-4 py-4 bg-primary hover:bg-primary-dark text-white font-extrabold rounded-2xl shadow-xl shadow-amber-500/25 transition flex items-center justify-center space-x-2 active:scale-[0.98]">
+                <i data-lucide="list-todo" class="w-5 h-5"></i>
+                <span>ดูรายการงานทั้งหมด</span>
+            </a>
+        </div>
+    </div>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/map.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        let currentDriver = null;
+        let driverRecord = null;
+        let driverLat = 13.7563;
+        let driverLng = 100.5018;
+        let locationWatchId = null;
+        let activePopupJobId = null;
+        let realtimeChannel = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('driver');
+            if (!auth) return;
+
+            currentDriver = auth.profile;
+            document.getElementById('greetingText').innerText = `สวัสดี, คุณ${currentDriver.full_name || 'ผู้ขับขี่'}`;
+
+            const { data: dData } = await supabaseClient
+                .from('drivers')
+                .select('*')
+                .eq('user_id', currentDriver.id)
+                .maybeSingle();
+            driverRecord = dData;
+
+            leafletMap = L.map('map', { zoomControl: false }).setView([driverLat, driverLng], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(leafletMap);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+            lucide.createIcons();
+
+            await checkActiveJob();
+            await loadDriverStatus();
+            await fetchDriverLocation();
+            await loadTodaySummary();
+            
+            // เริ่มต้นการดักฟัง Realtime
+            initRealtimeJobListener();
+        });
+
+        async function checkActiveJob() {
+            try {
+                const driverIdSearch = [currentDriver.id];
+                if (driverRecord && driverRecord.id) driverIdSearch.push(driverRecord.id);
+
+                const { data: activeJob } = await supabaseClient
+                    .from('jobs')
+                    .select('id, status')
+                    .in('driver_id', driverIdSearch)
+                    .in('status', ['accepted', 'arrived', 'traveling'])
+                    .maybeSingle();
+
+                if (activeJob) {
+                    window.location.href = `job-detail.html?id=${activeJob.id}`;
+                }
+            } catch (err) {
+                console.error('Check Active Job Error:', err);
+            }
+        }
+
+        async function loadDriverStatus() {
+            if (!driverRecord) return;
+            const isOnline = driverRecord.online_status === 'online';
+            document.getElementById('onlineToggle').checked = isOnline;
+            updateStatusUI(isOnline);
+            if (isOnline) {
+                startLocationTracking();
+                checkPendingWaitingJobs();
+            }
+        }
+
+        async function toggleOnlineStatus(isOnline) {
+            // ปลดล็อกการเล่นเสียงของเบราว์เซอร์
+            const audio = document.getElementById('jobAlertAudio');
+            if (audio) {
+                audio.play().then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }).catch(() => {});
+            }
+
+            const status = isOnline ? 'online' : 'offline';
+            
+            if (driverRecord) {
+                await supabaseClient
+                    .from('drivers')
+                    .update({ online_status: status })
+                    .eq('id', driverRecord.id);
+            }
+
+            updateStatusUI(isOnline);
+
+            if (isOnline) {
+                startLocationTracking();
+                await checkPendingWaitingJobs();
+            } else {
+                stopLocationTracking();
+            }
+        }
+
+        function updateStatusUI(isOnline) {
+            const label = document.getElementById('statusLabel');
+            const alertCard = document.getElementById('jobAlertCard');
+
+            if (isOnline) {
+                label.innerText = 'ออนไลน์';
+                label.className = 'text-xs font-black text-emerald-600';
+                alertCard.innerHTML = `
+                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto animate-bounce">
+                        <i data-lucide="radar" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-slate-900 text-sm">กำลังค้นหางานโดยสารใกล้คุณ...</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">ระบบจะแจ้งเตือนและเด้งป๊อปอัปทันทีเมื่อมีผู้โดยสารเรียกรถ</p>
+                    </div>
+                `;
+            } else {
+                label.innerText = 'ปิดรับงาน';
+                label.className = 'text-xs font-black text-slate-400';
+                alertCard.innerHTML = `
+                    <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <i data-lucide="wifi-off" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm">คุณกำลังอยู่ในสถานะ "ออฟไลน์"</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">เปิดสวิตช์มุมขวาบนเพื่อเริ่มรับงานโดยสารใกล้คุณ</p>
+                    </div>
+                `;
+            }
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // จุดแก้ไขหลัก: ระบบ Realtime ดักฟังแบบสมบูรณ์
+        // ==========================================
+        function initRealtimeJobListener() {
+            if (realtimeChannel) {
+                supabaseClient.removeChannel(realtimeChannel);
+            }
+
+            // สร้างการเชื่อมต่อดักฟังการเปลี่ยนแปลงตาราง jobs แบบ Realtime
+            realtimeChannel = supabaseClient
+                .channel('driver-jobs-broadcast')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*', // ดักจับทั้ง INSERT และ UPDATE
+                        schema: 'public',
+                        table: 'jobs'
+                    },
+                    (payload) => {
+                        console.log('⚡ Realtime Event Received:', payload);
+                        const isOnline = document.getElementById('onlineToggle').checked;
+                        const job = payload.new;
+
+                        if (isOnline && job && job.status === 'waiting') {
+                            triggerJobPopup(job);
+                        }
+                    }
+                )
+                .subscribe((status, err) => {
+                    console.log('📡 Realtime Connection Status:', status);
+                    if (err) console.error('Realtime Subscription Error:', err);
+                });
+        }
+
+        // ฟังก์ชันแสดง Pop-up งานเด้ง + เสียงเตือน
+        function triggerJobPopup(job) {
+            if (!job || activePopupJobId === job.id) return; 
+            activePopupJobId = job.id;
+
+            // เล่นเสียงแจ้งเตือน
+            const audio = document.getElementById('jobAlertAudio');
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => console.log('Audio autoplay policy prevented sound:', e));
+            }
+
+            // ปักหมุดจุดรับบนแผนที่
+            if (typeof addMarker === 'function') {
+                addMarker('pickup_realtime', job.pickup_latitude || driverLat, job.pickup_longitude || driverLng, 'ผู้โดยสารเรียกรถ', 'user');
+            }
+
+            // แสดง Pop-upSweetAlert2
+            Swal.fire({
+                title: '⚡ มีงานโดยสารใหม่เข้ามา!',
+                html: `
+                    <div class="text-left space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-2">
+                        <div class="flex items-start space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 shrink-0"></span>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">จุดรับผู้โดยสาร</p>
+                                <p class="text-xs font-bold text-slate-800">${job.pickup || 'ไม่ระบุ'}</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-slate-200"></div>
+                        <div class="flex items-start space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-600 mt-1 shrink-0"></span>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">จุดส่งปลายทาง</p>
+                                <p class="text-xs font-bold text-slate-800">${job.destination || 'ไม่ระบุ'}</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-slate-200 pt-2 flex justify-between items-center">
+                            <span class="text-xs text-slate-500 font-bold">ราคาค่าโดยสาร</span>
+                            <span class="text-xl font-black text-amber-600">฿${job.price || 0}</span>
+                        </div>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '⚡ กดรับงานทันที',
+                cancelButtonText: 'ข้ามงานนี้',
+                confirmButtonColor: '#F59E0B',
+                cancelButtonColor: '#64748B',
+                allowOutsideClick: false,
+                timer: 30000,
+                timerProgressBar: true,
+                willClose: () => {
+                    if (audio) {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }
+                }
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    acceptJobDirect(job.id);
+                } else {
+                    activePopupJobId = null;
+                }
+            });
+        }
+
+        async function acceptJobDirect(jobId) {
+            try {
+                Swal.fire({
+                    title: 'กำลังบันทึกการรับงาน...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const targetDriverId = driverRecord ? driverRecord.id : currentDriver.id;
+
+                const { data, error } = await supabaseClient
+                    .from('jobs')
+                    .update({ 
+                        driver_id: targetDriverId, 
+                        status: 'accepted' 
+                    })
+                    .eq('id', jobId)
+                    .eq('status', 'waiting')
+                    .select();
+
+                if (error || !data || data.length === 0) {
+                    const { data: retryData, error: retryErr } = await supabaseClient
+                        .from('jobs')
+                        .update({ 
+                            driver_id: currentDriver.id, 
+                            status: 'accepted' 
+                        })
+                        .eq('id', jobId)
+                        .eq('status', 'waiting')
+                        .select();
+
+                    if (retryErr || !retryData || retryData.length === 0) {
+                        throw new Error('งานนี้อาจถูกคนขับคนอื่นรับไปแล้ว');
+                    }
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'รับงานสำเร็จ!',
+                    text: 'กำลังนำคุณไปยังหน้านำทาง...',
+                    timer: 1000,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.href = `job-detail.html?id=${jobId}`;
+                });
+
+            } catch (err) {
+                console.error('Accept Job Exception:', err);
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'ไม่สามารถรับงานได้', 
+                    text: err.message || 'ไม่สามารถบันทึกการรับงานได้' 
+                });
+                activePopupJobId = null;
+            }
+        }
+
+        async function checkPendingWaitingJobs() {
+            const isOnline = document.getElementById('onlineToggle').checked;
+            if (!isOnline) return;
+
+            const { data: waitingJobs, error } = await supabaseClient
+                .from('jobs')
+                .select('*')
+                .eq('status', 'waiting')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (!error && waitingJobs && waitingJobs.length > 0) {
+                triggerJobPopup(waitingJobs[0]);
+            }
+        }
+
+        function startLocationTracking() {
+            if (navigator.geolocation && !locationWatchId) {
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        driverLat = pos.coords.latitude;
+                        driverLng = pos.coords.longitude;
+
+                        if (typeof addMarker === 'function') {
+                            addMarker('driver_pos', driverLat, driverLng, 'ตำแหน่งของคุณ', 'driver');
+                        }
+                    },
+                    (err) => console.error('GPS Error:', err),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+        }
+
+        function stopLocationTracking() {
+            if (locationWatchId) {
+                navigator.geolocation.clearWatch(locationWatchId);
+                locationWatchId = null;
+            }
+        }
+
+        async function fetchDriverLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    driverLat = pos.coords.latitude;
+                    driverLng = pos.coords.longitude;
+                    if (typeof setMapCenter === 'function') {
+                        setMapCenter(driverLat, driverLng, 16);
+                    }
+                    if (typeof addMarker === 'function') {
+                        addMarker('driver_pos', driverLat, driverLng, 'ตำแหน่งของคุณ', 'driver');
+                    }
+                });
+            }
+        }
+
+        function centerLocation() {
+            fetchDriverLocation();
+        }
+
+        async function triggerSOS() {
+            const confirm = await Swal.fire({
+                title: '🚨 แจ้งเหตุฉุกเฉิน (SOS)',
+                text: 'คุณต้องการส่งสัญญาณและพิกัดปัจจุบันไปยังศูนย์ควบคุมใช่หรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: 'ยืนยันส่งสัญญาณ',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (confirm.isConfirmed) {
+                await supabaseClient.from('notifications').insert({
+                    user_id: currentDriver.id,
+                    title: '🚨 แจ้งเหตุฉุกเฉินจากคนขับ',
+                    message: `คนขับ ${currentDriver.full_name} แจ้งเหตุฉุกเฉินที่พิกัด Lat: ${driverLat}, Lng: ${driverLng}`,
+                    type: 'sos'
+                });
+
+                Swal.fire('ส่งสัญญาณแล้ว', 'ศูนย์ควบคุมได้รับการแจ้งเตือนเรียบร้อยแล้ว', 'success');
+            }
+        }
+
+        async function loadTodaySummary() {
+            try {
+                const possibleDriverIds = [currentDriver.id];
+                if (driverRecord && driverRecord.id) {
+                    possibleDriverIds.push(driverRecord.id);
+                }
+
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+                const { data: jobs, error } = await supabaseClient
+                    .from('jobs')
+                    .select('price')
+                    .in('driver_id', possibleDriverIds)
+                    .eq('status', 'completed')
+                    .gte('created_at', startOfToday);
+
+                if (error) throw error;
+
+                if (jobs) {
+                    const total = jobs.reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
+                    document.getElementById('todayEarnings').innerText = typeof formatCurrency === 'function' ? formatCurrency(total) : `฿${total}`;
+                    document.getElementById('todayJobsCount').innerText = `${jobs.length} งาน`;
+                }
+            } catch (err) {
+                console.error('Error loading today summary:', err);
+            }
+        }
+    </script>
+</body>
+</html>

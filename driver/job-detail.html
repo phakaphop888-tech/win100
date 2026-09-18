@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายละเอียดการเดินทาง - วิน100</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { primary: { DEFAULT: '#F59E0B', dark: '#D97706' } } } }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .leaflet-routing-container { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 h-16 flex items-center justify-between px-4 z-30 shrink-0">
+        <a href="dashboard.html" class="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <h1 class="text-base font-black text-slate-900">นำทางผู้โดยสาร</h1>
+        <div class="w-9"></div>
+    </header>
+
+    <!-- Map Workspace -->
+    <div class="flex-grow relative flex flex-col lg:flex-row overflow-hidden">
+        <div id="map" class="flex-grow w-full h-full z-10"></div>
+
+        <!-- Info Card Panel -->
+        <div class="w-full lg:w-[420px] bg-white rounded-t-3xl lg:rounded-none shadow-2xl border-t lg:border-l border-slate-200 z-20 p-6 space-y-4 shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-full">
+            
+            <!-- Route Distance & Time Summary -->
+            <div id="routeInfo" class="text-xs bg-amber-50 text-amber-800 p-3.5 rounded-2xl border border-amber-200/80 text-center font-bold">
+                กำลังคำนวณเส้นทางถนนจริงและระยะเวลา...
+            </div>
+
+            <!-- Customer & Location Details -->
+            <div id="jobDetails" class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 text-xs">
+                <div class="text-center py-4">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-primary mx-auto"></i>
+                    <p class="text-[11px] text-slate-400 font-bold mt-2">กำลังโหลดรายละเอียดงาน...</p>
+                </div>
+            </div>
+
+            <!-- External Nav Button -->
+            <button id="googleNavBtn" onclick="openGoogleMaps()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs transition flex items-center justify-center space-x-2">
+                <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i>
+                <span>เปิดนำทางด้วย Google Maps App</span>
+            </button>
+
+            <!-- Main Status Action Button -->
+            <button id="actionBtn" onclick="updateJobProgress()" class="w-full py-4 bg-primary hover:bg-primary-dark text-white font-extrabold rounded-2xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center space-x-2 text-xs active:scale-[0.98]">
+                <span>กำลังโหลด...</span>
+            </button>
+        </div>
+    </div>
+
+    <script src="../js/supabase.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/map.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        const jobId = new URLSearchParams(window.location.search).get('id');
+        let currentJob = null;
+        let routingControl = null;
+        let pickupLat = 13.7563, pickupLng = 100.5018;
+        let destLat = 13.8086, destLng = 100.5018;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const auth = await checkAuth('driver');
+            if (!auth || !jobId) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            leafletMap = L.map('map', { zoomControl: false }).setView([pickupLat, pickupLng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
+            L.control.zoom({ position: 'topright' }).addTo(leafletMap);
+
+            await loadJobDetail();
+            lucide.createIcons();
+        });
+
+        const cleanAddress = (addr) => addr ? addr.split(',')[0].trim() : 'ไม่ระบุสถานที่';
+
+        async function loadJobDetail() {
+            const { data: job, error } = await supabaseClient
+                .from('jobs')
+                .select('*, customer:profiles!customer_id(full_name, phone)')
+                .eq('id', jobId)
+                .maybeSingle();
+
+            if (error || !job) {
+                Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลงาน' }).then(() => window.location.href = 'dashboard.html');
+                return;
+            }
+
+            currentJob = job;
+            pickupLat = job.pickup_latitude || 13.7563;
+            pickupLng = job.pickup_longitude || 100.5018;
+            destLat = job.destination_latitude || 13.8086;
+            destLng = job.destination_longitude || 100.5018;
+
+            addMarker('pickup', pickupLat, pickupLng, 'จุดรับผู้โดยสาร', 'user');
+            addMarker('destination', destLat, destLng, 'จุดหมายปลายทาง', 'destination');
+
+            drawRoute(pickupLat, pickupLng, destLat, destLng);
+
+            const customerName = job.customer?.full_name || 'ผู้โดยสาร';
+            const customerPhone = job.customer?.phone || '-';
+
+            document.getElementById('jobDetails').innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">ผู้โดยสาร</p>
+                        <p class="font-black text-slate-800 text-sm">${customerName}</p>
+                    </div>
+                    <a href="tel:${customerPhone}" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold flex items-center space-x-1 hover:bg-emerald-100 transition">
+                        <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                        <span>โทรออก</span>
+                    </a>
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <div class="flex items-start space-x-2">
+                        <div class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0 mt-1"></div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">จุดรับ</p>
+                            <p class="font-bold text-slate-700 leading-tight truncate">${cleanAddress(job.pickup)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <div class="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0 mt-1"></div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">จุดส่ง</p>
+                            <p class="font-bold text-slate-700 leading-tight truncate">${cleanAddress(job.destination)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between border-t border-slate-200/60 pt-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">ค่าบริการ</p>
+                    <p class="text-lg font-black text-amber-600">฿${job.price}</p>
+                </div>
+            `;
+
+            updateButtonUI(job.status);
+            lucide.createIcons();
+        }
+
+        function drawRoute(pLat, pLng, dLat, dLng) {
+            if (routingControl) leafletMap.removeControl(routingControl);
+
+            routingControl = L.Routing.control({
+                waypoints: [L.latLng(pLat, pLng), L.latLng(dLat, dLng)],
+                routeWhileDragging: false,
+                addWaypoints: false,
+                draggableWaypoints: false,
+                fitSelectedRoutes: true,
+                lineOptions: { styles: [{ color: '#F59E0B', opacity: 0.85, weight: 6 }] },
+                createMarker: function() { return null; }
+            }).addTo(leafletMap);
+
+            routingControl.on('routesfound', function(e) {
+                const summary = e.routes[0].summary;
+                const distanceKm = (summary.totalDistance / 1000).toFixed(1);
+                const timeMinutes = Math.round(summary.totalTime / 60);
+
+                document.getElementById('routeInfo').innerHTML = `
+                    ระยะทางประมาณ <b class="text-amber-700">${distanceKm} กม.</b> | เวลาเดินทางประมาณ <b class="text-amber-700">${timeMinutes} นาที</b>
+                `;
+            });
+        }
+
+        function updateButtonUI(status) {
+            const btn = document.getElementById('actionBtn');
+            if (status === 'accepted') {
+                btn.innerText = 'ถึงจุดรับผู้โดยสารแล้ว';
+                btn.className = "w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-2xl shadow-lg transition active:scale-[0.98]";
+            } else if (status === 'arrived') {
+                btn.innerText = 'เริ่มออกเดินทาง (ผู้โดยสารขึ้นรถแล้ว)';
+                btn.className = "w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl shadow-lg transition active:scale-[0.98]";
+            } else if (status === 'traveling') {
+                btn.innerText = 'ส่งผู้โดยสารเรียบร้อย (จบงาน)';
+                btn.className = "w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl shadow-lg transition active:scale-[0.98]";
+            }
+        }
+
+        async function updateJobProgress() {
+            let nextStatus = 'arrived';
+            if (currentJob.status === 'accepted') nextStatus = 'arrived';
+            else if (currentJob.status === 'arrived') nextStatus = 'traveling';
+            else if (currentJob.status === 'traveling') nextStatus = 'completed';
+
+            const { error: jobError } = await supabaseClient
+                .from('jobs')
+                .update({ status: nextStatus })
+                .eq('id', jobId);
+
+            if (jobError) {
+                Swal.fire({ icon: 'error', title: 'อัปเดตไม่สำเร็จ', text: jobError.message });
+                return;
+            }
+
+            if (nextStatus === 'completed') {
+                const earningsAmount = parseFloat(currentJob.price) || 0;
+
+                const { data: driverData } = await supabaseClient
+                    .from('drivers')
+                    .select('id')
+                    .eq('user_id', currentJob.driver_id)
+                    .maybeSingle();
+
+                const targetDriverId = driverData?.id || currentJob.driver_id;
+
+                const { error: earnError } = await supabaseClient
+                    .from('earnings')
+                    .insert([
+                        {
+                            driver_id: targetDriverId,
+                            job_id: currentJob.id,
+                            amount: earningsAmount,
+                            created_at: new Date().toISOString()
+                        }
+                    ]);
+
+                if (earnError) console.error('Earning Insert Error:', earnError);
+
+                Swal.fire({ 
+                    icon: 'success', 
+                    title: 'จบงานสำเร็จ!', 
+                    text: `ระบบบันทึกรายได้ ฿${earningsAmount} เข้าบัญชีเรียบร้อยแล้ว`,
+                    timer: 1800, 
+                    showConfirmButton: false 
+                }).then(() => window.location.href = 'dashboard.html');
+
+            } else {
+                currentJob.status = nextStatus;
+                updateButtonUI(nextStatus);
+            }
+        }
+
+        function openGoogleMaps() {
+            const googleUrl = `https://www.google.com/maps/dir/?api=1&origin=${pickupLat},${pickupLng}&destination=${destLat},${destLng}&travelmode=two-wheeler`;
+            window.open(googleUrl, '_blank');
+        }
+    </script>
+</body>
+</html>
